@@ -4,97 +4,50 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'آدرس وب‌سایت مورد نظر'
+        description: 'آدرس وبسایت'
         required: true
         type: string
-        default: 'https://example.com'
-      full_page:
-        description: 'اسکرین‌شات تمام صفحه؟'
-        required: false
-        type: boolean
-        default: true
-      width:
-        description: 'عرض صفحه (px)'
-        required: false
-        type: number
-        default: 1280
-      height:
-        description: 'ارتفاع صفحه (px)'
-        required: false
-        type: number
-        default: 800
+        default: 'https://google.com'
 
 jobs:
   screenshot:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create Shots directory
+      - uses: actions/checkout@v4
+      
+      - name: Create Shots folder
         run: mkdir -p Shots
-
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
+      
       - name: Install Puppeteer
         run: |
+          cd Shots
+          npm init -y
           npm install puppeteer
-          npx puppeteer browsers install chrome
-
-      - name: Take screenshot with Puppeteer
+          cd ..
+      
+      - name: Take Screenshot
         run: |
+          cd Shots
           node -e "
           const puppeteer = require('puppeteer');
-          const path = require('path');
-          const fs = require('fs');
-          
           (async () => {
-            const browser = await puppeteer.launch({
-              args: ['--no-sandbox', '--disable-setuid-sandbox']
-            });
+            const browser = await puppeteer.launch({args: ['--no-sandbox']});
             const page = await browser.newPage();
-            
-            await page.setViewport({
-              width: ${{ github.event.inputs.width }},
-              height: ${{ github.event.inputs.height }}
-            });
-            
-            await page.goto('${{ github.event.inputs.url }}', {
-              waitUntil: 'networkidle2',
-              timeout: 60000
-            });
-            
-            const fullPage = ${{ github.event.inputs.full_page }};
-            const timestamp = Date.now();
-            const filename = `screenshot-\${timestamp}.png`;
-            const filepath = path.join('Shots', filename);
-            
-            await page.screenshot({ 
-              path: filepath,
-              fullPage: fullPage
-            });
-            
+            await page.goto('${{ github.event.inputs.url }}');
+            await page.screenshot({path: 'screenshot.png', fullPage: true});
             await browser.close();
-            console.log(`✅ Screenshot saved: ${filepath}`);
-          })().catch(err => {
-            console.error('❌ Error:', err);
-            process.exit(1);
-          });
+          })();
           "
-
-      - name: List files in Shots directory
-        run: |
-          echo "Files in Shots directory:"
-          ls -la Shots/ || echo "No files found"
-
-      - name: Upload screenshot as artifact
+          cd ..
+      
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots-${{ github.run_id }}
-          path: Shots/*.png
-          retention-days: 30
-          if-no-files-found: warn
+          name: screenshot
+          path: Shots/screenshot.png
+          retention-days: 7
