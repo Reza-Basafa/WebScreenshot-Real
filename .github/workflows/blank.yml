@@ -1,53 +1,28 @@
-name: Capture Website Screenshot
+name: Screenshot
 
 on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'آدرس وبسایت'
+        description: 'URL'
         required: true
         type: string
-        default: 'https://google.com'
 
 jobs:
-  screenshot:
+  shot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Create Shots folder
+      - name: Make folder
         run: mkdir -p Shots
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      
-      - name: Install Puppeteer
+
+      - name: Take screenshot with curl
         run: |
-          cd Shots
-          npm init -y
-          npm install puppeteer
-          cd ..
-      
-      - name: Take Screenshot
-        run: |
-          cd Shots
-          node -e "
-          const puppeteer = require('puppeteer');
-          (async () => {
-            const browser = await puppeteer.launch({args: ['--no-sandbox']});
-            const page = await browser.newPage();
-            await page.goto('${{ github.event.inputs.url }}');
-            await page.screenshot({path: 'screenshot.png', fullPage: true});
-            await browser.close();
-          })();
-          "
-          cd ..
-      
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+          chromium-browser --headless --disable-gpu --screenshot=Shots/output.png --window-size=1280,800 ${{ github.event.inputs.url }}
+
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: screenshot
-          path: Shots/screenshot.png
-          retention-days: 7
+          path: Shots/
