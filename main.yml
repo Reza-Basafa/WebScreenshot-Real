@@ -8,27 +8,18 @@ on:
         required: true
         type: string
         default: 'https://example.com'
-      method:
-        description: 'روش گرفتن اسکرین‌شات'
-        required: true
-        type: choice
-        default: 'puppeteer'
-        options:
-          - puppeteer
-          - shot-scraper
-          - swinton
       full_page:
         description: 'اسکرین‌شات تمام صفحه؟'
         required: false
         type: boolean
         default: true
       width:
-        description: 'عرض صفحه (px) - فقط برای puppeteer'
+        description: 'عرض صفحه (px)'
         required: false
         type: number
         default: 1280
       height:
-        description: 'ارتفاع صفحه (px) - فقط برای puppeteer'
+        description: 'ارتفاع صفحه (px)'
         required: false
         type: number
         default: 800
@@ -41,54 +32,54 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ============ روش اول: Puppeteer ============
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Puppeteer
+        run: |
+          npm install puppeteer
+          npx puppeteer browsers install chrome
+
       - name: Take screenshot with Puppeteer
-        if: ${{ github.event.inputs.method == 'puppeteer' }}
-        uses: lannonbr/puppeteer-screenshot-action@1.3.0
-        with:
-          url: ${{ github.event.inputs.url }}
-          full-page: ${{ github.event.inputs.full_page }}
-          width: ${{ github.event.inputs.width }}
-          height: ${{ github.event.inputs.height }}
-
-      # ============ روش دوم: shot-scraper (Python + Playwright) ============
-      - name: Setup Python for shot-scraper
-        if: ${{ github.event.inputs.method == 'shot-scraper' }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install shot-scraper
-        if: ${{ github.event.inputs.method == 'shot-scraper' }}
         run: |
-          pip install shot-scraper
-          shot-scraper install
+          node -e "
+          const puppeteer = require('puppeteer');
+          
+          (async () => {
+            const browser = await puppeteer.launch({
+              args: ['--no-sandbox', '--disable-setuid-sandbox']
+            });
+            const page = await browser.newPage();
+            
+            await page.setViewport({
+              width: ${{ github.event.inputs.width }},
+              height: ${{ github.event.inputs.height }}
+            });
+            
+            await page.goto('${{ github.event.inputs.url }}', {
+              waitUntil: 'networkidle2',
+              timeout: 60000
+            });
+            
+            const fullPage = ${{ github.event.inputs.full_page }};
+            await page.screenshot({ 
+              path: 'screenshot.png',
+              fullPage: fullPage
+            });
+            
+            await browser.close();
+            console.log('Screenshot saved as screenshot.png');
+          })().catch(err => {
+            console.error('Error:', err);
+            process.exit(1);
+          });
+          "
 
-      - name: Take screenshot with shot-scraper
-        if: ${{ github.event.inputs.method == 'shot-scraper' }}
-        run: |
-          if [ "${{ github.event.inputs.full_page }}" = "true" ]; then
-            shot-scraper ${{ github.event.inputs.url }} -o screenshot.png --quality 100
-          else
-            shot-scraper ${{ github.event.inputs.url }} -o screenshot.png --width ${{ github.event.inputs.width }} --quality 100
-          fi
-
-      # ============ روش سوم: swinton/screenshot-website ============
-      - name: Take screenshot with swinton
-        if: ${{ github.event.inputs.method == 'swinton' }}
-        uses: swinton/screenshot-website@v1.x
-        with:
-          source: ${{ github.event.inputs.url }}
-          destination: screenshot.png
-          full-page: ${{ github.event.inputs.full_page }}
-
-      # ============ آپلود فایل ============
       - name: Upload screenshot as artifact
         uses: actions/upload-artifact@v4
         with:
           name: screenshot-${{ github.run_id }}
-          path: |
-            screenshot.png
-            screenshots/*.png
+          path: screenshot.png
           retention-days: 30
-          if-no-files-found: error
